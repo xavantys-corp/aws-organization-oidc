@@ -10,7 +10,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  LAB_DIR: lab01-caca-intruso/lab-caca-intruso
+  LAB_DIR: LAB/lab01-caca-intruso/lab-caca-intruso
 
 permissions:
   id-token: write
