@@ -69,12 +69,26 @@ jobs:
         with:
           terraform_version: '1.6.0'
 
-      - name: Configure AWS Credentials
+      - name: Configure AWS credentials (root user)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: us-east-1
+
+      - name: Assume role in sandbox_alunos
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-session-name: GitHubDeploy
+          aws-region: us-east-1
+
+      - name: Validate AWS identity
+        run: |
+          echo "--- Caller Identity ---"
+          aws sts get-caller-identity
 
       - name: Prepare alunos tfvars
         working-directory: ${{ env.LAB_DIR }}/terraform

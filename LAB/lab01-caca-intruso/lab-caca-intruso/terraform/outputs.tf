@@ -33,6 +33,11 @@ output "console_url" {
   value       = "https://console.aws.amazon.com/athena/home?region=${var.aws_region}"
 }
 
+output "iam_group" {
+  description = "Grupo IAM dos alunos"
+  value       = aws_iam_group.lab.name
+}
+
 output "credenciais_alunos" {
   description = "Usuários IAM criados com senhas aleatórias"
   sensitive   = true

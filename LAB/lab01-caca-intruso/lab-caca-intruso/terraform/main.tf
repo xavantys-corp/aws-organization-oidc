@@ -425,10 +425,21 @@ resource "aws_iam_user_login_profile" "aluno" {
   password_reset_required = true
 }
 
-# Anexa a política a cada aluno
-resource "aws_iam_user_policy_attachment" "aluno" {
-  for_each   = local.alunos_map
+# ─── Grupo IAM para os alunos ────────────────────────────────────────────────
+resource "aws_iam_group" "lab" {
+  name = "grupo_lab_incid_26"
+  path = "/labs/"
+}
 
-  user       = aws_iam_user.aluno[each.key].name
+# ─── Adiciona usuários ao grupo ─────────────────────────────────────────────
+resource "aws_iam_group_membership" "aluno" {
+  name  = "lab01-alunos-membership"
+  group = aws_iam_group.lab.name
+  users = [for u in aws_iam_user.aluno : u.name]
+}
+
+# ─── Anexa a política ao grupo (não aos usuários individualmente) ────────────
+resource "aws_iam_group_policy_attachment" "lab" {
+  group      = aws_iam_group.lab.name
   policy_arn = aws_iam_policy.lab_policy.arn
 }
