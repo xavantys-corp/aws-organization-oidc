@@ -67,7 +67,7 @@ def main():
     script_dir = Path(__file__).resolve().parent
     project_dir = script_dir.parent
     alunos_txt = project_dir / "alunos.txt"
-    tfvars_path = project_dir / "LAB" / "lab01-caca-intruso" / "lab-caca-intruso" / "terraform" / "terraform.tfvars"
+    tfvars_path = project_dir / "lab01-caca-intruso" / "lab-caca-intruso" / "terraform" / "terraform.tfvars"
     json_path = script_dir / "alunos.json"
 
     # Read

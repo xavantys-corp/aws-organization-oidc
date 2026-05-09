@@ -10,7 +10,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  LAB_DIR: LAB/lab01-caca-intruso/lab-caca-intruso
+  LAB_DIR: lab01-caca-intruso/lab-caca-intruso
 
 permissions:
   id-token: write
@@ -30,12 +30,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download Terraform State
-        uses: actions/download-artifact@v4
-        with:
-          name: terraform-state
-          path: ${{ env.LAB_DIR }}/terraform/
-        continue-on-error: true
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3

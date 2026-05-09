@@ -129,7 +129,7 @@ def main():
     print(f"  → {len(credenciais)} alunos encontrados")
 
     # Output: acesso.md
-    output_path = project_dir / "LAB" / "lab01-caca-intruso" / "acesso.md"
+    output_path = project_dir / "lab01-caca-intruso" / "acesso.md"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     md_content = generate_acesso_md(credenciais)

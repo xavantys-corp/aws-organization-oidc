@@ -201,12 +201,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: acesso-lab01
-          path: LAB/lab01-caca-intruso/acesso.md
+          path: acesso.md
           retention-days: 30
 
-      - name: Upload Terraform State
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-state
-          path: ${{ env.LAB_DIR }}/terraform/terraform.tfstate
-          retention-days: 30
