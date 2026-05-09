@@ -1,0 +1,78 @@
+name: Destroy Lab 01 — Caça ao Intruso
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_destroy:
+        description: 'Type "DESTROY" to confirm'
+        required: true
+        type: string
+
+env:
+  AWS_REGION: us-east-1
+  LAB_DIR: LAB/lab01-caca-intruso/lab-caca-intruso
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  destroy:
+    name: Destroy Infrastructure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm destroy
+        if: github.event.inputs.confirm_destroy != 'DESTROY'
+        run: |
+          echo "::error::Confirmation failed. Type exactly DESTROY to proceed."
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Terraform State
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-state
+          path: ${{ env.LAB_DIR }}/terraform/
+        continue-on-error: true
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.6.0'
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        working-directory: ${{ env.LAB_DIR }}/terraform
+        run: terraform init
+
+      - name: Terraform Plan (destroy)
+        working-directory: ${{ env.LAB_DIR }}/terraform
+        run: terraform plan -destroy -input=false
+        env:
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Destroy
+        working-directory: ${{ env.LAB_DIR }}/terraform
+        run: terraform destroy -auto-approve -input=false
+        env:
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+
+      - name: Cleanup empty S3 buckets (if any remain)
+        run: |
+          echo "Checking for remaining fatec-lab01 buckets..."
+          aws s3api list-buckets --query "Buckets[?starts_with(Name, 'fatec-lab01')].Name" --output text | tr '\t' '\n' | while read bucket; do
+            if [ -n "$bucket" ]; then
+              echo "Emptying and deleting: $bucket"
+              aws s3 rm "s3://$bucket" --recursive 2>/dev/null || true
+              aws s3api delete-bucket --bucket "$bucket" 2>/dev/null || true
+            fi
+          done
+          echo "Cleanup complete."

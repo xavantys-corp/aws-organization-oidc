@@ -1,0 +1,46 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# terraform.tfvars.example
+# Copie para terraform.tfvars e preencha com os dados da sua turma
+# Formato: lista de nomes completos — username gerado auto (primeiro.segundo)
+# ══════════════════════════════════════════════════════════════════════════════
+
+aws_region = "us-east-1"
+
+alunos = [
+  "Lucas Oliveira",
+  "Ana Santos",
+  "Pedro Souza",
+  "Maria Silva",
+  "Gabriel Costa",
+  "Juliana Ferreira",
+  "Rafael Lima",
+  "Camila Rodrigues",
+  "Bruno Almeida",
+  "Fernanda Pereira",
+  "Thiago Nascimento",
+  "Patricia Araujo",
+  "Diego Carvalho",
+  "Larissa Ribeiro",
+  "Felipe Gomes",
+  "Amanda Martins",
+  "Gustavo Rocha",
+  "Beatriz Dias",
+  "Leonardo Moreira",
+  "Isabela Barbosa",
+  "Matheus Cardoso",
+  "Carolina Teixeira",
+  "Henrique Mendes",
+  "Vanessa Correia",
+  "Rodrigo Pinto",
+  "Aline Monteiro",
+  "Victor Castro",
+  "Priscila Nunes",
+  "Daniel Freitas",
+  "Renata Machado",
+  "Caio Borges",
+  "Tatiana Duarte",
+  "André Coelho",
+  "Simone Reis",
+  "Marcos Vieira",
+  "Letícia Cunha",
+]

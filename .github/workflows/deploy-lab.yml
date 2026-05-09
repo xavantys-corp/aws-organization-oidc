@@ -1,0 +1,198 @@
+name: Deploy Lab 01 — Caça ao Intruso
+
+on:
+  workflow_dispatch:
+    inputs:
+      alunos_json:
+        description: 'JSON array de strings com nomes: ["Joao Silva", "Maria Santos", ...]'
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - 'LAB/lab01-caca-intruso/**'
+
+env:
+  AWS_REGION: us-east-1
+  LAB_DIR: LAB/lab01-caca-intruso/lab-caca-intruso
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  generate-logs:
+    name: Generate CloudTrail Logs
+    runs-on: ubuntu-latest
+    outputs:
+      log-artifact-ready: ${{ steps.upload.outputs.artifact_ready }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Generate logs
+        working-directory: ${{ env.LAB_DIR }}/logs
+        run: |
+          python3 generate_logs.py
+          echo "--- Generated files ---"
+          ls -la output/
+
+      - name: Upload log artifacts
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudtrail-logs
+          path: ${{ env.LAB_DIR }}/logs/output/
+          retention-days: 5
+
+  terraform-deploy:
+    name: Terraform Deploy
+    needs: generate-logs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download log artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cloudtrail-logs
+          path: ${{ env.LAB_DIR }}/logs/output/
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.6.0'
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Prepare alunos tfvars
+        working-directory: ${{ env.LAB_DIR }}/terraform
+        run: |
+          ALUNOS_JSON="${{ github.event.inputs.alunos_json }}"
+          if [ -z "$ALUNOS_JSON" ]; then
+            ALUNOS_JSON="${{ secrets.TF_VAR_ALUNOS_JSON }}"
+          fi
+          if [ -n "$ALUNOS_JSON" ]; then
+            echo "alunos = ${ALUNOS_JSON}" > alunos.auto.tfvars
+            echo "--- alunos.auto.tfvars ---"
+            cat alunos.auto.tfvars
+          else
+            echo "Nenhum ALUNOS_JSON fornecido. Usando terraform.tfvars existente."
+            if [ ! -f terraform.tfvars ]; then
+              echo "::error::Nenhum alunos fornecido e terraform.tfvars não encontrado."
+              exit 1
+            fi
+          fi
+
+      - name: Terraform Init
+        working-directory: ${{ env.LAB_DIR }}/terraform
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: ${{ env.LAB_DIR }}/terraform
+        run: terraform plan -input=false
+        env:
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Apply
+        working-directory: ${{ env.LAB_DIR }}/terraform
+        run: terraform apply -auto-approve -input=false
+        env:
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+
+      - name: Generate acesso.md
+        working-directory: ${{ env.LAB_DIR }}/terraform
+        run: |
+          BUCKET_LOGS=$(terraform output -raw bucket_logs)
+          BUCKET_ATHENA=$(terraform output -raw bucket_athena_results)
+          WG=$(terraform output -raw athena_workgroup)
+          DB=$(terraform output -raw athena_database)
+          TABLE=$(terraform output -raw athena_table)
+          CONSOLE=$(terraform output -raw console_url)
+          QUERY=$(terraform output -raw query_primeiro_acesso)
+
+          # Get aluno credentials from sensitive output
+          CREDENCIAIS=$(terraform output -json credenciais_alunos)
+
+          cat > ../../acesso.md << 'HEADER'
+          # Lab 01 — Caça ao Intruso | Acesso AWS
+
+          ## Ambiente
+
+          | Recurso | Valor |
+          |---|---|
+          HEADER
+
+          echo "| **Console** | ${CONSOLE} |" >> ../../acesso.md
+          echo "| **Região** | ${AWS_REGION} |" >> ../../acesso.md
+          echo "| **Bucket Logs** | \`${BUCKET_LOGS}\` |" >> ../../acesso.md
+          echo "| **Bucket Athena Results** | \`${BUCKET_ATHENA}\` |" >> ../../acesso.md
+          echo "| **Athena Workgroup** | \`${WG}\` |" >> ../../acesso.md
+          echo "| **Athena Database** | \`${DB}\` |" >> ../../acesso.md
+          echo "| **Athena Table** | \`${TABLE}\` |" >> ../../acesso.md
+
+          cat >> ../../acesso.md << 'MIDDLE'
+
+          ## Query de Teste
+
+          ```sql
+          MIDDLE
+
+          echo "${QUERY}" >> ../../acesso.md
+
+          cat >> ../../acesso.md << 'CREDS_HEADER'
+          ```
+
+          ## Credenciais dos Alunos
+
+          | Aluno | Usuário IAM | Senha Inicial | Trocar Senha |
+          |---|---|---|---|
+          CREDS_HEADER
+
+          # Parse JSON credentials and append rows
+          echo "$CREDENCIAIS" | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          for username, info in data.items():
+              print(f'| {info[\"nome_completo\"]} | {username} | {info[\"senha_inicial\"]} | Sim |')
+          " >> ../../acesso.md
+
+          cat >> ../../acesso.md << 'FOOTER'
+
+          ## Instruções
+
+          1. Acesse o [Console AWS](https://console.aws.amazon.com)
+          2. Faça login com seu usuário e senha acima
+          3. Troque a senha no primeiro acesso
+          4. Navegue até o serviço **Athena**
+          5. Selecione o Workgroup indicado na tabela
+          7. Execute a query de teste para validar o ambiente
+          FOOTER
+
+          echo "--- acesso.md gerado ---"
+          cat ../../acesso.md
+
+      - name: Upload acesso.md artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: acesso-lab01
+          path: LAB/lab01-caca-intruso/acesso.md
+          retention-days: 30
+
+      - name: Upload Terraform State
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-state
+          path: ${{ env.LAB_DIR }}/terraform/terraform.tfstate
+          retention-days: 30
