@@ -2,7 +2,7 @@
 
 Automatiza provisionamento AWS via Terraform com GitHub Actions usando **autenticação OIDC** (sem chaves de acesso de longa duração).
 
-> **OIDC**: O GitHub Actions gera um token JWT por execução de workflow. A AWS valida o token e concede acesso temporário à role `github_role`. Nenhuma credencial é armazenada no repositório. O template CloudFormation StackSet que provisiona a role OIDC é mantido no repositório de infraestrutura da organização: `<ORG_INFRA_REPO>`.
+> **OIDC**: O GitHub Actions gera um token JWT por execução de workflow. A AWS valida o token e concede acesso temporário à role `github_role`. Nenhuma credencial é armazenada no repositório. O template CloudFormation StackSet que provisiona a role OIDC é mantido no repositório de infraestrutura da organização: `xavantys-corp/aws-organization-oidc`.
 
 ## Fluxo
 
@@ -42,7 +42,7 @@ Configure em **Settings → Secrets and variables → Actions**:
 | `AWS_TARGET_ACCOUNT_ID` | Não | Fallback apenas se `repo-config.yml` estiver ausente | `123456789012` |
 | `TF_VAR_ALUNOS_JSON` | Não | JSON array com nomes dos alunos (fallback se não usar workflow_dispatch) | `["Joao Silva","Maria Santos"]` |
 
-> **Nota**: A autenticação usa OIDC — não é necessário configurar `AWS_ACCESS_KEY_ID` ou `AWS_SECRET_ACCESS_KEY`. A IAM Role `github_role` é provisionada pelo StackSet CloudFormation mantido no repositório de infraestrutura da organização (`<ORG_INFRA_REPO>`).
+> **Nota**: A autenticação usa OIDC — não é necessário configurar `AWS_ACCESS_KEY_ID` ou `AWS_SECRET_ACCESS_KEY`. A IAM Role `github_role` é provisionada pelo StackSet CloudFormation mantido no repositório de infraestrutura da organização (`xavantys-corp/aws-organization-oidc`).
 
 ### Arquivo `repo-config.yml`
 
