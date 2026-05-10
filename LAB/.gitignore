@@ -1,0 +1,13 @@
+# Terraform state
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+
+# Generated credentials
+**/acesso.md
+**/credenciais.json
+**/alunos.auto.tfvars
+
+# Log outputs
+**/logs/output/*.json
+**/logs/output/*.json.gz

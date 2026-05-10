@@ -1,0 +1,106 @@
+name: Destroy Lab 01 — Caça ao Intruso
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_destroy:
+        description: 'Type "DESTROY" to confirm'
+        required: true
+        type: string
+
+env:
+  AWS_REGION: us-east-1
+  LAB_DIR: LAB/lab01-caca-intruso/lab-caca-intruso
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  destroy:
+    name: Destroy Infrastructure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm destroy
+        if: github.event.inputs.confirm_destroy != 'DESTROY'
+        run: |
+          echo "::error::Confirmation failed. Type exactly DESTROY to proceed."
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.6.0'
+
+      - name: Read repo config
+        id: repo_config
+        run: |
+          set -e
+          if [ -f repo-config.yml ]; then
+            pip install pyyaml -q
+            python3 -c "
+            import yaml, json
+            with open('repo-config.yml') as f:
+                cfg = yaml.safe_load(f)
+            aws = cfg.get('aws', {})
+            tags = cfg.get('tags', {})
+            print('account_id=' + str(aws.get('account_id', '')))
+            print('aws_region=' + str(aws.get('region', 'us-east-1')))
+            print('role_name=' + str(aws.get('role_name', 'github_role')))
+            print('tags_json=' + json.dumps(tags))
+            " >> "$GITHUB_OUTPUT"
+            echo "Config loaded from repo-config.yml"
+          else
+            echo "::warning::repo-config.yml not found, falling back to secrets"
+            echo "account_id=${{ secrets.AWS_TARGET_ACCOUNT_ID }}" >> "$GITHUB_OUTPUT"
+            echo "aws_region=us-east-1" >> "$GITHUB_OUTPUT"
+            echo "role_name=github_role" >> "$GITHUB_OUTPUT"
+            echo 'tags_json={}' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Export tags as Terraform variable
+        run: echo "TF_VAR_tags=${{ steps.repo_config.outputs.tags_json }}" >> $GITHUB_ENV
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ steps.repo_config.outputs.account_id }}:role/${{ steps.repo_config.outputs.role_name }}
+          role-session-name: GitHubActions-DestroyLab01
+          aws-region: ${{ steps.repo_config.outputs.aws_region }}
+
+      - name: Validate AWS identity
+        run: |
+          echo "--- Caller Identity ---"
+          aws sts get-caller-identity
+
+      - name: Terraform Init
+        working-directory: ${{ env.LAB_DIR }}/terraform
+        run: terraform init
+
+      - name: Terraform Plan (destroy)
+        working-directory: ${{ env.LAB_DIR }}/terraform
+        run: terraform plan -destroy -input=false
+        env:
+          TF_VAR_aws_region: ${{ steps.repo_config.outputs.aws_region }}
+
+      - name: Terraform Destroy
+        working-directory: ${{ env.LAB_DIR }}/terraform
+        run: terraform destroy -auto-approve -input=false
+        env:
+          TF_VAR_aws_region: ${{ steps.repo_config.outputs.aws_region }}
+
+      - name: Cleanup empty S3 buckets (if any remain)
+        run: |
+          echo "Checking for remaining fatec-lab01 buckets..."
+          aws s3api list-buckets --query "Buckets[?starts_with(Name, 'fatec-lab01')].Name" --output text | tr '\t' '\n' | while read bucket; do
+            if [ -n "$bucket" ]; then
+              echo "Emptying and deleting: $bucket"
+              aws s3 rm "s3://$bucket" --recursive 2>/dev/null || true
+              aws s3api delete-bucket --bucket "$bucket" 2>/dev/null || true
+            fi
+          done
+          echo "Cleanup complete."
