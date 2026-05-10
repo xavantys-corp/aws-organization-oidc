@@ -39,20 +39,20 @@ jobs:
       - name: Read repo config
         id: repo_config
         run: |
+          set -e
           if [ -f repo-config.yml ]; then
+            pip install pyyaml -q
             python3 -c "
-            import yaml, json, os, sys
+            import yaml, json
             with open('repo-config.yml') as f:
                 cfg = yaml.safe_load(f)
             aws = cfg.get('aws', {})
             tags = cfg.get('tags', {})
-            print(f'account_id={aws.get(\"account_id\", \"\")}')
-            print(f'aws_region={aws.get(\"region\", \"us-east-1\")}')
-            print(f'role_name={aws.get(\"role_name\", \"github_role\")}')
-            print(f'tags_json={json.dumps(tags)}')
-            " | while IFS='=' read -r key value; do
-              echo "${key}=${value}" >> "$GITHUB_OUTPUT"
-            done
+            print('account_id=' + str(aws.get('account_id', '')))
+            print('aws_region=' + str(aws.get('region', 'us-east-1')))
+            print('role_name=' + str(aws.get('role_name', 'github_role')))
+            print('tags_json=' + json.dumps(tags))
+            " >> "$GITHUB_OUTPUT"
             echo "Config loaded from repo-config.yml"
           else
             echo "::warning::repo-config.yml not found, falling back to secrets"
