@@ -1,0 +1,259 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  GitHub Actions OIDC Identity Provider and IAM Role for Terraform lab execution.
+  Deploy as StackSet across AWS Organization accounts.
+  Role name: GitHubActionsOIDCRole (matches GitHub Actions workflow expectations).
+
+Parameters:
+  GitHubOrg:
+    Type: String
+    Default: xavantys-corp
+    Description: GitHub organization or username that owns the repository.
+
+  GitHubRepo:
+    Type: String
+    Default: lab-resposta-incidentes-fatec
+    Description: GitHub repository name allowed to assume the role.
+
+  LabPrefix:
+    Type: String
+    Default: fatec-lab01
+    Description: Prefix used to scope lab resources (S3 buckets, IAM users, log groups, etc.).
+
+Resources:
+  GitHubOIDCProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ThumbprintList:
+        - 6938fd4e98bab3fa4317bcbae533e1e3c0036e3a
+      ClientIdList:
+        - sts.amazonaws.com
+      Tags:
+        - Key: Lab
+          Value: !Ref LabPrefix
+        - Key: ManagedBy
+          Value: CloudFormation-StackSet
+
+  GitHubActionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: GitHubActionsOIDCRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !GetAtt GitHubOIDCProvider.Arn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub 'repo:${GitHubOrg}/${GitHubRepo}:*'
+      Tags:
+        - Key: Lab
+          Value: !Ref LabPrefix
+        - Key: ManagedBy
+          Value: CloudFormation-StackSet
+
+  GitHubActionsPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: GitHubActionsLabPolicy
+      Roles:
+        - !Ref GitHubActionsRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # S3 - Bucket and object management scoped to lab prefix
+          - Sid: S3BucketManagement
+            Effect: Allow
+            Action:
+              - s3:CreateBucket
+              - s3:DeleteBucket
+              - s3:ListBucket
+              - s3:GetBucketLocation
+              - s3:PutBucketPolicy
+              - s3:GetBucketPolicy
+              - s3:DeleteBucketPolicy
+              - s3:PutBucketVersioning
+              - s3:PutBucketEncryption
+              - s3:PutBucketPublicAccessBlock
+              - s3:GetBucketPublicAccessBlock
+              - s3:PutBucketTagging
+              - s3:GetBucketTagging
+              - s3:PutObject
+              - s3:GetObject
+              - s3:DeleteObject
+              - s3:ListAllMyBuckets
+            Resource:
+              - !Sub 'arn:aws:s3:::${LabPrefix}-*'
+              - !Sub 'arn:aws:s3:::${LabPrefix}-*/*'
+
+          # Athena - Full query and workgroup management
+          - Sid: AthenaAccess
+            Effect: Allow
+            Action:
+              - athena:StartQueryExecution
+              - athena:GetQueryExecution
+              - athena:GetQueryResults
+              - athena:StopQueryExecution
+              - athena:ListQueryExecutions
+              - athena:CreateWorkGroup
+              - athena:DeleteWorkGroup
+              - athena:GetWorkGroup
+              - athena:UpdateWorkGroup
+              - athena:ListWorkGroups
+              - athena:CreateNamedQuery
+              - athena:DeleteNamedQuery
+              - athena:GetNamedQuery
+              - athena:ListNamedQueries
+              - athena:ListDataCatalogs
+              - athena:GetDataCatalog
+              - athena:ListDatabases
+              - athena:GetDatabase
+              - athena:ListTableMetadata
+              - athena:GetTableMetadata
+            Resource:
+              - '*'
+
+          # Glue - Database, table, crawler, and job management
+          - Sid: GlueAccess
+            Effect: Allow
+            Action:
+              - glue:CreateDatabase
+              - glue:DeleteDatabase
+              - glue:GetDatabase
+              - glue:GetDatabases
+              - glue:UpdateDatabase
+              - glue:CreateTable
+              - glue:DeleteTable
+              - glue:GetTable
+              - glue:GetTables
+              - glue:UpdateTable
+              - glue:BatchCreatePartition
+              - glue:BatchDeletePartition
+              - glue:BatchGetPartition
+              - glue:CreateCrawler
+              - glue:DeleteCrawler
+              - glue:GetCrawler
+              - glue:StartCrawler
+              - glue:StopCrawler
+              - glue:CreateJob
+              - glue:DeleteJob
+              - glue:GetJob
+              - glue:StartJobRun
+              - glue:GetJobRun
+              - glue:BatchStopJobRun
+              - glue:GetTags
+              - glue:TagResource
+              - glue:UntagResource
+            Resource:
+              - !Sub 'arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog'
+              - !Sub 'arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/${LabPrefix}-*'
+              - !Sub 'arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/${LabPrefix}-*/*'
+              - !Sub 'arn:aws:glue:${AWS::Region}:${AWS::AccountId}:crawler/${LabPrefix}-*'
+              - !Sub 'arn:aws:glue:${AWS::Region}:${AWS::AccountId}:job/${LabPrefix}-*'
+
+          # IAM - Create and manage users, groups, and policies for lab students
+          - Sid: IAMUserGroupManagement
+            Effect: Allow
+            Action:
+              - iam:CreateUser
+              - iam:DeleteUser
+              - iam:GetUser
+              - iam:ListUsers
+              - iam:TagUser
+              - iam:UntagUser
+              - iam:ListUserTags
+              - iam:CreateLoginProfile
+              - iam:DeleteLoginProfile
+              - iam:UpdateLoginProfile
+              - iam:CreateAccessKey
+              - iam:DeleteAccessKey
+              - iam:ListAccessKeys
+              - iam:UpdateAccessKey
+              - iam:CreateGroup
+              - iam:DeleteGroup
+              - iam:GetGroup
+              - iam:ListGroups
+              - iam:TagGroup
+              - iam:UntagGroup
+              - iam:ListGroupTags
+              - iam:AddUserToGroup
+              - iam:RemoveUserFromGroup
+              - iam:CreatePolicy
+              - iam:DeletePolicy
+              - iam:GetPolicy
+              - iam:ListPolicies
+              - iam:AttachUserPolicy
+              - iam:DetachUserPolicy
+              - iam:AttachGroupPolicy
+              - iam:DetachGroupPolicy
+              - iam:PutUserPolicy
+              - iam:DeleteUserPolicy
+              - iam:PutGroupPolicy
+              - iam:DeleteGroupPolicy
+              - iam:ListAttachedUserPolicies
+              - iam:ListAttachedGroupPolicies
+              - iam:ListUserPolicies
+              - iam:ListGroupPolicies
+              - iam:ListEntitiesForPolicy
+            Resource:
+              - !Sub 'arn:aws:iam::${AWS::AccountId}:user/${LabPrefix}-*'
+              - !Sub 'arn:aws:iam::${AWS::AccountId}:group/${LabPrefix}-*'
+              - !Sub 'arn:aws:iam::${AWS::AccountId}:policy/${LabPrefix}-*'
+
+          # CloudWatch Logs - Log groups and streams for Athena/Glue
+          - Sid: CloudWatchLogsAccess
+            Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:DeleteLogGroup
+              - logs:DescribeLogGroups
+              - logs:CreateLogStream
+              - logs:DeleteLogStream
+              - logs:DescribeLogStreams
+              - logs:PutLogEvents
+              - logs:GetLogEvents
+              - logs:FilterLogEvents
+              - logs:TagLogGroup
+              - logs:UntagLogGroup
+              - logs:ListTagsLogGroup
+            Resource:
+              - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/athena/${LabPrefix}-*'
+              - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/glue/${LabPrefix}-*'
+              - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${LabPrefix}-*'
+              - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${LabPrefix}-*:*'
+
+          # PassRole for Glue jobs and crawlers
+          - Sid: PassRoleForGlue
+            Effect: Allow
+            Action:
+              - iam:PassRole
+            Resource:
+              - !Sub 'arn:aws:iam::${AWS::AccountId}:role/${LabPrefix}-*'
+            Condition:
+              StringEquals:
+                iam:PassedToService:
+                  - glue.amazonaws.com
+
+Outputs:
+  OIDCProviderArn:
+    Description: ARN do Provedor de Identidade OIDC do GitHub
+    Value: !GetAtt GitHubOIDCProvider.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-OIDCProviderArn'
+
+  GitHubActionsRoleArn:
+    Description: ARN da IAM Role para GitHub Actions
+    Value: !GetAtt GitHubActionsRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-GitHubActionsRoleArn'
+
+  GitHubActionsRoleName:
+    Description: Nome da IAM Role para GitHub Actions
+    Value: !Ref GitHubActionsRole
+    Export:
+      Name: !Sub '${AWS::StackName}-GitHubActionsRoleName'

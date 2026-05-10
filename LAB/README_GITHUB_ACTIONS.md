@@ -1,6 +1,8 @@
 # GitHub Actions — Lab AWS Caça ao Intruso
 
-Automatiza provisionamento AWS via Terraform com GitHub Actions.
+Automatiza provisionamento AWS via Terraform com GitHub Actions usando **autenticação OIDC** (sem chaves de acesso de longa duração).
+
+> **OIDC**: O GitHub Actions gera um token JWT por execução de workflow. A AWS valida o token e concede acesso temporário à role `GitHubActionsOIDCRole`. Nenhuma credencial é armazenada no repositório. Veja detalhes em [`cloudformation/README.md`](../cloudformation/README.md).
 
 ## Fluxo
 
@@ -35,42 +37,18 @@ Dispara via `workflow_dispatch`. Exige confirmação explícita digitando `DESTR
 
 Configure em **Settings → Secrets and variables → Actions**:
 
-| Secret | Descrição | Exemplo |
-|--------|-----------|---------|
-| `AWS_ACCESS_KEY_ID` | Access key da conta AWS | `AKIA...` |
-| `AWS_SECRET_ACCESS_KEY` | Secret key da conta AWS | `wJalr...` |
-| `TF_VAR_ALUNOS_JSON` | JSON array com nomes dos alunos (fallback se não usar workflow_dispatch) | `["Joao Silva","Maria Santos"]` |
+| Secret | Obrigatório | Descrição | Exemplo |
+|--------|-------------|-----------|---------|
+| `AWS_TARGET_ACCOUNT_ID` | Sim | ID da conta AWS onde o lab será provisionado | `123456789012` |
+| `TF_VAR_ALUNOS_JSON` | Não | JSON array com nomes dos alunos (fallback se não usar workflow_dispatch) | `["Joao Silva","Maria Santos"]` |
 
-### AWS IAM User (para CI/CD)
-
-Crie um usuário com permissões mínimas:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "s3:CreateBucket",
-        "s3:PutObject",
-        "s3:GetObject",
-        "s3:ListBucket",
-        "s3:DeleteObject",
-        "iam:*",
-        "athena:*",
-        "glue:*",
-        "organizations:DescribeOrganization"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
-```
+> **Nota**: A autenticação usa OIDC — não é necessário configurar `AWS_ACCESS_KEY_ID` ou `AWS_SECRET_ACCESS_KEY`. A IAM Role `GitHubActionsOIDCRole` é criada automaticamente pelo StackSet CloudFormation em cada conta da Organization.
 
 ## Como Usar
 
 ### Localmente
+
+> **CI/CD usa OIDC** — os workflows no GitHub Actions autenticam via `GitHubActionsOIDCRole` (sem chaves). Para desenvolvimento local, configure credenciais AWS normalmente.
 
 ```bash
 # 1. Edite alunos.txt com nomes reais (um por linha)
@@ -80,9 +58,13 @@ Crie um usuário com permissões mínimas:
 # 2. Gere terraform.tfvars + alunos.json
 python scripts/generar_usuarios.py
 
-# 3. Configure AWS credentials
+# 3. Configure AWS credentials (apenas para uso local)
+#    Opção A: aws configure
+aws configure
+#    Opção B: variáveis de ambiente
 export AWS_ACCESS_KEY_ID="AKIA..."
 export AWS_SECRET_ACCESS_KEY="wJalr..."
+export AWS_DEFAULT_REGION="us-east-1"
 
 # 4. Inicialize e aplique
 cd LAB/lab01-caca-intruso/lab-caca-intruso/terraform

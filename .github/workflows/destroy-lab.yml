@@ -36,21 +36,12 @@ jobs:
         with:
           terraform_version: '1.6.0'
 
-      - name: Configure AWS credentials (root user)
+      - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-
-      - name: Assume role in sandbox_alunos
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          role-session-name: GitHubDeploy
-          aws-region: us-east-1
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_TARGET_ACCOUNT_ID }}:role/GitHubActionsOIDCRole
+          role-session-name: GitHubActions-DestroyLab01
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Validate AWS identity
         run: |
