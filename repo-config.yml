@@ -1,0 +1,10 @@
+aws:
+  account_id: "449014188319"
+  region: "us-east-1"
+  role_name: "github_role"
+
+tags:
+  environment: "lab"
+  project: "resposta-incidentes-fatec"
+  owner: "xavantys-corp"
+  managed_by: "github-actions"

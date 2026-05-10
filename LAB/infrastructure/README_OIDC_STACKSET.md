@@ -1,3 +1,5 @@
+> ⚠️ **LEGACY DOCUMENT** — O template CloudFormation StackSet para provisionamento OIDC foi movido para o repositório de infraestrutura da organização: `<ORG_INFRA_REPO>`. Este documento permanece neste repositório apenas como referência histórica sobre como o OIDC funciona. Para o template atualizado, consulte `<ORG_INFRA_REPO>`.
+
 # Configuração OIDC + StackSet para o Lab
 
 ## Visão Geral
@@ -21,7 +23,7 @@
 - [ ] **Conta AWS Organization master** — acesso à conta gerenciadora da Organization
 - [ ] **Permissão para criar StackSets** — política `AWSOrganizationsFullAccess` ou equivalente
 - [ ] **Repositório GitHub existente** — `xavantys-corp/lab-resposta-incidentes-fatec`
-- [ ] **Template CloudFormation** — arquivo `cloudformation/github-oidc-role.yaml` presente no repositório
+- [ ] **Template CloudFormation** — arquivo disponível em `<ORG_INFRA_REPO>` (anteriormente em `cloudformation/github-oidc-role.yaml`)
 
 ---
 
@@ -36,9 +38,9 @@
 ### 1.2 Configurar Template
 
 1. Em **Specify template**, selecione **Upload a template file**
-2. Faça upload do arquivo:
+2. Faça upload do arquivo obtido em `<ORG_INFRA_REPO>`:
    ```
-   LAB/infrastructure/cloudformation/github-oidc-role.yaml
+   <ORG_INFRA_REPO>/cloudformation/github-oidc-role.yaml
    ```
 3. Clique em **Next**
 
@@ -402,7 +404,7 @@ Cada assume role gera evento CloudTrail:
 
 | Item | Valor |
 |---|---|
-| **Template** | `LAB/infrastructure/cloudformation/github-oidc-role.yaml` |
+| **Template** | `<ORG_INFRA_REPO>/cloudformation/github-oidc-role.yaml` |
 | **GitHub Org** | `xavantys-corp` |
 | **GitHub Repo** | `lab-resposta-incidentes-fatec` |
 | **Lab Prefix** | `fatec-lab01` |

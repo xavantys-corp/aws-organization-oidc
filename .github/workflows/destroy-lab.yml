@@ -36,12 +36,41 @@ jobs:
         with:
           terraform_version: '1.6.0'
 
+      - name: Read repo config
+        id: repo_config
+        run: |
+          if [ -f repo-config.yml ]; then
+            python3 -c "
+            import yaml, json, os, sys
+            with open('repo-config.yml') as f:
+                cfg = yaml.safe_load(f)
+            aws = cfg.get('aws', {})
+            tags = cfg.get('tags', {})
+            print(f'account_id={aws.get(\"account_id\", \"\")}')
+            print(f'aws_region={aws.get(\"region\", \"us-east-1\")}')
+            print(f'role_name={aws.get(\"role_name\", \"github_role\")}')
+            print(f'tags_json={json.dumps(tags)}')
+            " | while IFS='=' read -r key value; do
+              echo "${key}=${value}" >> "$GITHUB_OUTPUT"
+            done
+            echo "Config loaded from repo-config.yml"
+          else
+            echo "::warning::repo-config.yml not found, falling back to secrets"
+            echo "account_id=${{ secrets.AWS_TARGET_ACCOUNT_ID }}" >> "$GITHUB_OUTPUT"
+            echo "aws_region=us-east-1" >> "$GITHUB_OUTPUT"
+            echo "role_name=github_role" >> "$GITHUB_OUTPUT"
+            echo 'tags_json={}' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Export tags as Terraform variable
+        run: echo "TF_VAR_tags=${{ steps.repo_config.outputs.tags_json }}" >> $GITHUB_ENV
+
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_TARGET_ACCOUNT_ID }}:role/GitHubActionsOIDCRole
+          role-to-assume: arn:aws:iam::${{ steps.repo_config.outputs.account_id }}:role/${{ steps.repo_config.outputs.role_name }}
           role-session-name: GitHubActions-DestroyLab01
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ steps.repo_config.outputs.aws_region }}
 
       - name: Validate AWS identity
         run: |
@@ -56,13 +85,13 @@ jobs:
         working-directory: ${{ env.LAB_DIR }}/terraform
         run: terraform plan -destroy -input=false
         env:
-          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+          TF_VAR_aws_region: ${{ steps.repo_config.outputs.aws_region }}
 
       - name: Terraform Destroy
         working-directory: ${{ env.LAB_DIR }}/terraform
         run: terraform destroy -auto-approve -input=false
         env:
-          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+          TF_VAR_aws_region: ${{ steps.repo_config.outputs.aws_region }}
 
       - name: Cleanup empty S3 buckets (if any remain)
         run: |

@@ -2,7 +2,7 @@
 
 Automatiza provisionamento AWS via Terraform com GitHub Actions usando **autenticação OIDC** (sem chaves de acesso de longa duração).
 
-> **OIDC**: O GitHub Actions gera um token JWT por execução de workflow. A AWS valida o token e concede acesso temporário à role `GitHubActionsOIDCRole`. Nenhuma credencial é armazenada no repositório. Veja detalhes em [`cloudformation/README.md`](../cloudformation/README.md).
+> **OIDC**: O GitHub Actions gera um token JWT por execução de workflow. A AWS valida o token e concede acesso temporário à role `github_role`. Nenhuma credencial é armazenada no repositório. O template CloudFormation StackSet que provisiona a role OIDC é mantido no repositório de infraestrutura da organização: `<ORG_INFRA_REPO>`.
 
 ## Fluxo
 
@@ -39,16 +39,35 @@ Configure em **Settings → Secrets and variables → Actions**:
 
 | Secret | Obrigatório | Descrição | Exemplo |
 |--------|-------------|-----------|---------|
-| `AWS_TARGET_ACCOUNT_ID` | Sim | ID da conta AWS onde o lab será provisionado | `123456789012` |
+| `AWS_TARGET_ACCOUNT_ID` | Não | Fallback apenas se `repo-config.yml` estiver ausente | `123456789012` |
 | `TF_VAR_ALUNOS_JSON` | Não | JSON array com nomes dos alunos (fallback se não usar workflow_dispatch) | `["Joao Silva","Maria Santos"]` |
 
-> **Nota**: A autenticação usa OIDC — não é necessário configurar `AWS_ACCESS_KEY_ID` ou `AWS_SECRET_ACCESS_KEY`. A IAM Role `GitHubActionsOIDCRole` é criada automaticamente pelo StackSet CloudFormation em cada conta da Organization.
+> **Nota**: A autenticação usa OIDC — não é necessário configurar `AWS_ACCESS_KEY_ID` ou `AWS_SECRET_ACCESS_KEY`. A IAM Role `github_role` é provisionada pelo StackSet CloudFormation mantido no repositório de infraestrutura da organização (`<ORG_INFRA_REPO>`).
+
+### Arquivo `repo-config.yml`
+
+O account ID, região e nome da role são lidos do arquivo `repo-config.yml` na raiz do repositório:
+
+```yaml
+aws:
+  account_id: "449014188319"
+  region: "us-east-1"
+  role_name: "github_role"
+
+tags:
+  environment: "lab"
+  project: "resposta-incidentes-fatec"
+  owner: "xavantys-corp"
+  managed_by: "github-actions"
+```
+
+O secret `AWS_TARGET_ACCOUNT_ID` só é usado como fallback defensivo caso o arquivo esteja ausente.
 
 ## Como Usar
 
 ### Localmente
 
-> **CI/CD usa OIDC** — os workflows no GitHub Actions autenticam via `GitHubActionsOIDCRole` (sem chaves). Para desenvolvimento local, configure credenciais AWS normalmente.
+> **CI/CD usa OIDC** — os workflows no GitHub Actions autenticam via `github_role` (sem chaves). Para desenvolvimento local, configure credenciais AWS normalmente.
 
 ```bash
 # 1. Edite alunos.txt com nomes reais (um por linha)
@@ -92,6 +111,7 @@ cat LAB/lab01-caca-intruso/acesso.md
 
 ```
 atividades_alunos/
+├── repo-config.yml                     ← Config AWS (account ID, região, tags)
 ├── alunos.txt                          ← Edite aqui (nomes dos alunos)
 ├── scripts/
 │   ├── generar_usuarios.py             ← Gera tfvars + JSON (list(string))
